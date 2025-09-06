@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
-
+    
     <!-- Link al manifest per la PWA -->
     <link rel="manifest" href="manifest.json">
     <style>
@@ -486,18 +486,15 @@
         .property-controls-stack {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-            /* Spazio tra i due menu */
+            gap: 0.5rem; /* Spazio tra i due menu */
             flex-shrink: 0;
-            width: 160px;
-            /* Larghezza fissa per il contenitore, come il campo 'gruppo' originale */
+            width: 160px; /* Larghezza fissa per il contenitore, come il campo 'gruppo' originale */
         }
 
         /* Reset e override per i select all'interno del nuovo contenitore */
         .property-controls-stack .group-select,
         .property-controls-stack .plan-select {
-            flex-basis: auto;
-            /* Annulla la base flessibile */
+            flex-basis: auto; /* Annulla la base flessibile */
             width: 100%;
         }
 
@@ -1286,58 +1283,6 @@
         let reportsListener = null; // NUOVA RIGA
         let sollecitisListener = null; // NUOVA RIGA
         let navigationHistory = [];
-
-        // MODIFICA 1: Sistema di navigazione basato su URL
-        const updateURL = (page) => {
-            // MODIFICA 10: Gestione migliorata dello stato del browser
-            const url = new URL(window.location);
-            url.searchParams.set('page', page);
-
-            // Salva informazioni aggiuntive nello stato per una migliore gestione
-            const state = {
-                page: page,
-                timestamp: Date.now(),
-                userLoggedIn: !!currentUser
-            };
-
-            window.history.pushState(state, '', url);
-        };
-
-        const getPageFromURL = () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('page') || 'login';
-        };
-
-        const handlePopState = (event) => {
-            // MODIFICA 14: Gestione migliorata del pulsante indietro con debug
-            console.log('PopState triggered:', event.state, 'Current URL:', window.location.href);
-
-            const page = event.state?.page || getPageFromURL();
-
-            // Se non c'è una pagina nell'URL, vai alla dashboard (se loggato) o login
-            const targetPage = page || (currentUser ? 'dashboard' : 'login');
-
-            console.log('Target page:', targetPage, 'Current page:', currentPage);
-
-            if (targetPage !== currentPage) {
-                currentPage = targetPage;
-
-                // Aggiorna la cronologia interna per mantenere la coerenza
-                if (navigationHistory[navigationHistory.length - 1] !== targetPage) {
-                    // Se stiamo andando indietro, rimuovi l'ultima pagina dalla cronologia
-                    if (navigationHistory.length > 1 && navigationHistory[navigationHistory.length - 2] === targetPage) {
-                        navigationHistory.pop();
-                    } else {
-                        navigationHistory.push(targetPage);
-                    }
-                }
-
-                console.log('Navigation history:', navigationHistory);
-
-                renderCurrentPage();
-                updateBottomNavigation();
-            }
-        };
         let servicePermissions = null;
         let currentStoragePath = '';
         let selectedUploadPath = ''; // Nuova variabile per il percorso di upload scelto
@@ -1588,13 +1533,13 @@
 
         const resetPassword = async t => await sendPasswordResetEmail(auth, t);
         const loadUserProfile = async t => { if (t) { const e = await getDoc(doc(db, "users", t.uid)); e.exists() && (userProfile = e.data()) } };
-
+        
         // NUOVO: Carica il periodo amministrativo corrente
         const loadCurrentAdministrativePeriod = async () => {
             try {
                 const now = new Date();
-                const q = query(collection(db, "administrativePeriods"),
-                    where("startDate", "<=", now),
+                const q = query(collection(db, "administrativePeriods"), 
+                    where("startDate", "<=", now), 
                     orderBy("startDate", "desc"),
                     limit(1));
 
@@ -1704,7 +1649,7 @@
                         endDate: endDate,
                         createdAt: serverTimestamp()
                     });
-
+                    
                     await logActivity("admin_period_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { year });
                     messageBox.className = 'message-box success';
                     messageBox.textContent = 'Periodo creato con successo!';
@@ -1808,21 +1753,17 @@
             if (userType === "custode" && ["sondaggi", "sondaggi_crea", "sondaggi_elenco", "sondaggi_attivi", "sondaggi_conclusi"].includes(e)) {
                 navigateTo("segnalazioni");
             } else {
-                currentPage = e;
-                // MODIFICA 2: Aggiorna URL quando si naviga
-                updateURL(e);
-                renderCurrentPage();
+                currentPage = e, renderCurrentPage();
             }
         };
 
         const navigateBack = () => {
-            // MODIFICA 13: Gestione migliorata del pulsante indietro
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                // Se non c'è cronologia, vai alla dashboard
-                navigateTo(currentUser ? 'dashboard' : 'login');
+            if (navigationHistory.length > 1) {
+                navigationHistory.pop(); // Rimuove la pagina corrente dalla cronologia
+                currentPage = navigationHistory[navigationHistory.length - 1]; // La pagina precedente diventa quella corrente
+                renderCurrentPage();
             }
+            // Non fa nulla se non c'è una pagina precedente
         };
 
         const refreshApplication = async () => {
@@ -2067,14 +2008,6 @@
                 <div id="success-message" class="message-box success w-full" style="max-width:400px; margin-top: 1rem;"></div>
             </div>`;
 
-        // MODIFICA 6: Funzione per aggiornare la bottom navigation
-        const updateBottomNavigation = () => {
-            const bottomNavElement = document.querySelector('.bottom-nav');
-            if (bottomNavElement) {
-                bottomNavElement.outerHTML = renderBottomNavigation();
-            }
-        };
-
         const renderBottomNavigation = () => {
             const isCustodian = userProfile?.tipoUtente === 'custode';
 
@@ -2126,21 +2059,6 @@
 `;
             return `<nav class="bottom-nav">${navItems}</nav>`;
         };
-
-        // MODIFICA 7: Event listener per la bottom navigation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.nav-item')) {
-                e.preventDefault();
-                const navItem = e.target.closest('.nav-item');
-                const onclick = navItem.getAttribute('onclick');
-                if (onclick) {
-                    const match = onclick.match(/navigateTo\('([^']+)'\)/);
-                    if (match) {
-                        navigateTo(match[1]);
-                    }
-                }
-            }
-        });
 
         const renderDashboard = () => {
             const dashboardItemsHtml = [];
@@ -2216,7 +2134,7 @@
                 `);
             }
             if (['adm', 'amministratore'].includes(userProfile?.tipoUtente)) {
-                dashboardItemsHtml.push(`
+                    dashboardItemsHtml.push(`
                         <div onclick="navigateTo('statisticheCondomini')" class="dashboard-item">
                             <div class="dashboard-card">
                                 <svg fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v16H4V4zm6 0h4v16h-4V4zm6 0h4v16h-4V4z"/></svg>
@@ -2224,10 +2142,10 @@
                             <p>Statistiche</p>
                         </div>
                     `);
-            }
+                }
 
-            if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) {
-                dashboardItemsHtml.push(`
+                if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) {
+                    dashboardItemsHtml.push(`
                         <div onclick="navigateTo('gestioneGruppi')" class="dashboard-item">
                         <div class="dashboard-card">
                             <svg fill="currentColor" viewBox="0 0 24 24">
@@ -2318,7 +2236,7 @@
             </main>
             ${renderBottomNavigation()}
         `;
-
+        
         const setupStatisticheCondominiHandlers = async () => {
             const filterForm = document.getElementById('stats-filter-form');
             const resetBtn = document.getElementById('reset-stats-filters-btn');
@@ -2338,16 +2256,16 @@
                 console.error("Error populating condo filter:", error);
                 condoFilterSelect.innerHTML += '<option disabled>Errore nel caricamento</option>';
             }
-
+            
             const handleFilter = (e) => {
-                if (e) e.preventDefault();
+                if(e) e.preventDefault();
                 loadCondoStats();
             };
-
+            
             filterForm.addEventListener('submit', handleFilter);
             resetBtn.addEventListener('click', () => {
                 filterForm.reset();
-                setTimeout(handleFilter, 0);
+                setTimeout(handleFilter, 0); 
             });
 
             loadCondoStats();
@@ -2361,7 +2279,7 @@
             try {
                 const startDateInput = document.getElementById('start-date')?.value;
                 const endDateInput = document.getElementById('end-date')?.value;
-
+                
                 let startDate = null;
                 let endDate = null;
 
@@ -2441,7 +2359,7 @@
                 pollsSnapshot.forEach(doc => {
                     const poll = doc.data();
                     if (poll.pollType === 'condomini') {
-                        allGroupNames.forEach(groupName => {
+                         allGroupNames.forEach(groupName => {
                             if (stats[groupName]) stats[groupName].polls++;
                         });
                     }
@@ -2450,17 +2368,17 @@
                 // 4. Apply condo filter and render the table
                 const selectedCondo = document.getElementById('condo-filter')?.value || 'all';
                 const selectedActivity = document.getElementById('activity-type-filter')?.value || 'all';
-                const groupsToDisplay = selectedCondo === 'all'
-                    ? allGroupNames
+                const groupsToDisplay = selectedCondo === 'all' 
+                    ? allGroupNames 
                     : allGroupNames.filter(name => name === selectedCondo);
 
                 if (groupsToDisplay.length === 0) {
                     container.innerHTML = '<p style="color:var(--secondary-text);">Nessun gruppo trovato per i filtri selezionati.</p>';
                     return;
                 }
-
+                
                 let tableHtml = `<table class="data-table"><thead><tr><th>Condominio / Gruppo</th>`;
-
+                
                 if (selectedActivity === 'all' || selectedActivity === 'communications') {
                     tableHtml += `<th style="text-align:center;">Comunicazioni</th>`;
                 }
@@ -2804,21 +2722,21 @@
         const renderSegnalazioniCrea = () => {
             const isCustodian = userProfile?.tipoUtente === 'custode';
 
-            const recipientOptions = isCustodian
-                ? `
+        const recipientOptions = isCustodian
+            ? `
                 <option value="amministratore" id="admin-option">Amministratore</option>
                 <option value="condomini">Condomini</option>
                 <option value="consigliere" id="consigliere-option">Consiglieri</option>
                 <option value="adm" id="adm-option">Sviluppatore</option>
               `
-                : `
+            : `
                 <option value="amministratore" id="admin-option">Amministratore</option>
                 <option value="custode" id="custode-option">Custode</option>
                 <option value="consigliere" id="consigliere-option">Consiglieri</option>
                 <option value="adm" id="adm-option">Sviluppatore</option>
               `;
 
-            const formRecipientField = `
+        const formRecipientField = `
         <div>
             <label class="form-label">Destinatario</label>
             <select id="report-recipient" required class="form-select">
@@ -4944,40 +4862,40 @@
             };
 
             let activeRules = [];
-            let importedHeaders = [];
+        let importedHeaders = [];
 
-            const getAutomaticGroupByRules = (propertyData) => {
-                if (!propertyData || activeRules.length === 0) return '';
-
-                for (const rule of activeRules) {
-                    if (rule.type === 'text_contains_classification' && rule.params) {
-                        const targetColumn = rule.params.targetColumn;
-                        const searchText = rule.params.searchText.toLowerCase();
-                        const propertyValue = (propertyData[targetColumn] || '').toString().toLowerCase();
-
-                        if (propertyValue.includes(searchText)) {
-                            return rule.params.classification; // Applica la prima regola che corrisponde
-                        }
+        const getAutomaticGroupByRules = (propertyData) => {
+            if (!propertyData || activeRules.length === 0) return '';
+            
+            for (const rule of activeRules) {
+                if (rule.type === 'text_contains_classification' && rule.params) {
+                    const targetColumn = rule.params.targetColumn;
+                    const searchText = rule.params.searchText.toLowerCase();
+                    const propertyValue = (propertyData[targetColumn] || '').toString().toLowerCase();
+                    
+                    if (propertyValue.includes(searchText)) {
+                        return rule.params.classification; // Applica la prima regola che corrisponde
                     }
-                    // Nota: le regole 'row_range_classification' non sono applicabili in questo contesto.
                 }
+                // Nota: le regole 'row_range_classification' non sono applicabili in questo contesto.
+            }
+            
+            return ''; // Nessuna regola corrispondente
+        };
 
-                return ''; // Nessuna regola corrispondente
-            };
+        const loadActiveGroupRules = async () => {
+            if (activeRules.length > 0) return;
+            try {
+                const q = query(collection(db, "groupRules"), where("isActive", "==", true));
+                const snapshot = await getDocs(q);
+                activeRules = snapshot.docs.map(doc => doc.data());
+            } catch (error) {
+                console.error("Errore nel caricamento delle regole di gruppo:", error);
+                activeRules = [];
+            }
+        };
 
-            const loadActiveGroupRules = async () => {
-                if (activeRules.length > 0) return;
-                try {
-                    const q = query(collection(db, "groupRules"), where("isActive", "==", true));
-                    const snapshot = await getDocs(q);
-                    activeRules = snapshot.docs.map(doc => doc.data());
-                } catch (error) {
-                    console.error("Errore nel caricamento delle regole di gruppo:", error);
-                    activeRules = [];
-                }
-            };
-
-            const loadPropertyDataForRegistration = async () => {
+        const loadPropertyDataForRegistration = async () => {
                 if (Object.keys(localGroupedProperties).length > 0) return;
                 try {
                     const q = query(collection(db, "importedData"), orderBy("uploadedAt", "desc"), limit(1));
@@ -5066,7 +4984,7 @@
                     const groupSelect = itemElement.querySelector('.group-select');
                     const planSelect = itemElement.querySelector('.plan-select');
                     const selectedOption = groupSelect.options[groupSelect.selectedIndex];
-
+                    
                     if (!selectedOption || !selectedOption.dataset.start) {
                         planSelect.innerHTML = '<option>Seleziona gruppo</option>';
                         planSelect.disabled = true;
@@ -5075,7 +4993,7 @@
 
                     const start = parseInt(selectedOption.dataset.start, 10);
                     const end = parseInt(selectedOption.dataset.end, 10);
-
+                    
                     let planOptionsHtml = '<option value="" disabled selected>Piano...</option>';
                     for (let i = start; i <= end; i++) {
                         planOptionsHtml += `<option value="${i}">${i}</option>`;
@@ -5151,11 +5069,11 @@
                 registerFields.classList.toggle("hidden", !isRegistering);
                 forgotPasswordBtn.classList.toggle("hidden", isRegistering);
                 if (isRegistering) {
-                    await Promise.all([
-                        loadPropertyDataForRegistration(),
-                        loadActiveGroupRules()
-                    ]);
-                }
+                await Promise.all([
+                    loadPropertyDataForRegistration(),
+                    loadActiveGroupRules()
+                ]);
+            }
             });
 
             authForm?.addEventListener("submit", async t => {
@@ -5169,46 +5087,46 @@
                         if (!i || !s || !a || !l.trim()) throw new Error("Compila tutti i campi obbligatori");
 
                         const propertiesForUser = [];
-                        let groupSelectionMissing = false;
-                        propertyItemsContainer.querySelectorAll('.property-selection-item').forEach(item => {
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            if (checkbox && !checkbox.checked) return;
+                    let groupSelectionMissing = false;
+                    propertyItemsContainer.querySelectorAll('.property-selection-item').forEach(item => {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && !checkbox.checked) return;
 
-                            const selectedGroup = item.querySelector('.group-select').value;
-                            if (!selectedGroup) {
-                                groupSelectionMissing = true;
-                            }
+                        const selectedGroup = item.querySelector('.group-select').value;
+                        if (!selectedGroup) {
+                            groupSelectionMissing = true;
+                        }
 
-                            propertiesForUser.push({
-                                interno: item.dataset.apartment,
-                                millesimi: parseFloat(item.dataset.millesimi) || 0,
-                                gruppo: selectedGroup
-                            });
+                        propertiesForUser.push({
+                            interno: item.dataset.apartment,
+                            millesimi: parseFloat(item.dataset.millesimi) || 0,
+                            gruppo: selectedGroup
                         });
+                    });
 
-                        if (propertiesForUser.length === 0) throw new Error("Seleziona almeno una unità immobiliare.");
-                        let planSelectionMissing = false;
-                        propertyItemsContainer.querySelectorAll('.property-selection-item').forEach(item => {
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            if (checkbox && !checkbox.checked) return;
+                    if (propertiesForUser.length === 0) throw new Error("Seleziona almeno una unità immobiliare.");
+                    let planSelectionMissing = false;
+                    propertyItemsContainer.querySelectorAll('.property-selection-item').forEach(item => {
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        if (checkbox && !checkbox.checked) return;
 
-                            const selectedGroup = item.querySelector('.group-select').value;
-                            if (!selectedGroup) groupSelectionMissing = true;
+                        const selectedGroup = item.querySelector('.group-select').value;
+                        if (!selectedGroup) groupSelectionMissing = true;
 
-                            const selectedPlan = item.querySelector('.plan-select').value;
-                            if (!selectedPlan) planSelectionMissing = true;
+                        const selectedPlan = item.querySelector('.plan-select').value;
+                        if (!selectedPlan) planSelectionMissing = true;
 
-                            propertiesForUser.push({
-                                interno: item.dataset.apartment,
-                                millesimi: parseFloat(item.dataset.millesimi) || 0,
-                                gruppo: selectedGroup,
-                                piano: selectedPlan ? parseInt(selectedPlan, 10) : null
-                            });
+                        propertiesForUser.push({
+                            interno: item.dataset.apartment,
+                            millesimi: parseFloat(item.dataset.millesimi) || 0,
+                            gruppo: selectedGroup,
+                            piano: selectedPlan ? parseInt(selectedPlan, 10) : null
                         });
+                    });
 
-                        if (propertiesForUser.length === 0) throw new Error("Seleziona almeno una unità immobiliare.");
-                        if (groupSelectionMissing) throw new Error("È obbligatorio assegnare un gruppo a ogni unità immobiliare selezionata.");
-                        if (planSelectionMissing) throw new Error("È obbligatorio selezionare un piano per ogni unità immobiliare selezionata.");
+                    if (propertiesForUser.length === 0) throw new Error("Seleziona almeno una unità immobiliare.");
+                    if (groupSelectionMissing) throw new Error("È obbligatorio assegnare un gruppo a ogni unità immobiliare selezionata.");
+                    if (planSelectionMissing) throw new Error("È obbligatorio selezionare un piano per ogni unità immobiliare selezionata.");
 
                         const internosToRegister = propertiesForUser.map(p => p.interno);
                         const usersSnapshot = await getDocs(collection(db, "users"));
@@ -5677,7 +5595,7 @@
                 const submitBtn = document.getElementById("submit-report-btn");
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Invio in corso...';
-
+                
                 // --- INIZIO BLOCCO MODIFICATO: Raccolta dati dal form ---
                 const title = document.getElementById("report-title").value;
                 const description = document.getElementById("report-description").value;
@@ -5704,7 +5622,7 @@
                         propertyInfo = { interno, piano };
                     }
                 }
-
+                
                 if (!title || !description || !category || !priority || !location || !recipient) {
                     alert("Compila tutti i campi obbligatori.");
                     submitBtn.disabled = false;
@@ -5727,7 +5645,7 @@
                     }
 
                     submitBtn.textContent = 'Salvataggio dati...';
-
+                    
                     let reportData;
                     await runTransaction(db, async (transaction) => {
                         const counterDoc = await transaction.get(counterRef);
@@ -6735,7 +6653,7 @@
                 const nameInput = document.getElementById('partial-condo-name');
                 const startPlanInput = document.getElementById('partial-condo-start-plan');
                 const endPlanInput = document.getElementById('partial-condo-end-plan');
-
+                
                 const name = nameInput.value.trim();
                 const startPlan = parseInt(startPlanInput.value, 10);
                 const endPlan = parseInt(endPlanInput.value, 10);
@@ -8076,7 +7994,7 @@
                 if (commDoc.exists()) {
                     const comm = commDoc.data();
                     let attachmentsHtml = '';
-
+                    
                     // --- MODIFICATION START ---
                     // This block now renders a gallery of attachments if fileUrls exist.
                     if (comm.fileUrls && comm.fileUrls.length > 0) {
@@ -8084,38 +8002,38 @@
                         <h4 style="font-size: 1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem;">Allegati:</h4>
                         <div class="report-attachments-gallery" style="padding-left: 0;">
                             ${comm.fileUrls.map(url => {
-                            // Simple logic to differentiate file types based on common extensions in the URL
-                            const lowerUrl = url.toLowerCase();
-                            const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(lowerUrl);
-                            const isVideo = /\.(mp4|mov|webm)$/.test(lowerUrl);
+                                // Simple logic to differentiate file types based on common extensions in the URL
+                                const lowerUrl = url.toLowerCase();
+                                const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(lowerUrl);
+                                const isVideo = /\.(mp4|mov|webm)$/.test(lowerUrl);
+                                
+                                let fileName = 'Documento';
+                                try {
+                                    // Extract a user-friendly file name from the URL
+                                    const urlPath = new URL(url).pathname;
+                                    const decodedPath = decodeURIComponent(urlPath);
+                                    fileName = decodedPath.substring(decodedPath.lastIndexOf('/') + 1);
+                                    // Remove the timestamp prefix for display
+                                    if (fileName.includes('_')) {
+                                        fileName = fileName.substring(fileName.indexOf('_') + 1);
+                                    }
+                                } catch (e) { /* Fallback if URL parsing fails */ }
 
-                            let fileName = 'Documento';
-                            try {
-                                // Extract a user-friendly file name from the URL
-                                const urlPath = new URL(url).pathname;
-                                const decodedPath = decodeURIComponent(urlPath);
-                                fileName = decodedPath.substring(decodedPath.lastIndexOf('/') + 1);
-                                // Remove the timestamp prefix for display
-                                if (fileName.includes('_')) {
-                                    fileName = fileName.substring(fileName.indexOf('_') + 1);
-                                }
-                            } catch (e) { /* Fallback if URL parsing fails */ }
-
-                            if (isImage) {
-                                return `<a href="${url}" target="_blank" class="gallery-item"><img src="${url}" alt="Allegato immagine"></a>`;
-                            } else if (isVideo) {
-                                return `<a href="${url}" target="_blank" class="gallery-item"><video src="${url}" controls preload="metadata"></video></a>`;
-                            } else {
-                                // Fallback for documents (PDF, DOCX, etc.)
-                                return `
+                                if (isImage) {
+                                    return `<a href="${url}" target="_blank" class="gallery-item"><img src="${url}" alt="Allegato immagine"></a>`;
+                                } else if (isVideo) {
+                                    return `<a href="${url}" target="_blank" class="gallery-item"><video src="${url}" controls preload="metadata"></video></a>`;
+                                } else {
+                                    // Fallback for documents (PDF, DOCX, etc.)
+                                    return `
                                     <a href="${url}" target="_blank" class="gallery-item">
                                         <div class="preview-item-document">
                                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                                             <span>${fileName}</span>
                                         </div>
                                     </a>`;
-                            }
-                        }).join('')}
+                                }
+                            }).join('')}
                         </div>
                         `;
                     }
@@ -8156,7 +8074,7 @@
                     if (userRole === 'custode') {
                         return comm.forwardToCustode === true;
                     }
-
+                    
                     // Logica generale per tutti gli altri utenti.
                     const hasGeneralPermission = canSeeAll || !comm.targetGroup || comm.targetGroup === 'Tutti' || userGroups.includes(comm.targetGroup);
                     return hasGeneralPermission;
@@ -8180,7 +8098,7 @@
                         if (!comm.createdAt) return "";
 
                         const dateFormatted = comm.createdAt.toDate().toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-
+                        
                         const targetGroupHtml = comm.targetGroup && comm.targetGroup !== 'Tutti'
                             ? `<span class="badge status-aperta" style="font-size: 0.7rem; text-transform: uppercase;">${comm.targetGroup}</span>`
                             : '';
@@ -9441,13 +9359,13 @@
                     const interno = row.querySelector('input[data-field="interno"]').value.trim();
                     const millesimi = parseFloat(row.querySelector('input[data-field="millesimi"]').value) || 0;
                     const gruppo = row.querySelector('select[data-field="gruppo"]').value;
-                    const pianoSelect = row.querySelector('select[data-field="piano"]');
-                    const piano = pianoSelect.value ? parseInt(pianoSelect.value, 10) : null;
+                        const pianoSelect = row.querySelector('select[data-field="piano"]');
+                        const piano = pianoSelect.value ? parseInt(pianoSelect.value, 10) : null;
 
-                    if (interno) {
-                        updatedProperties.push({ interno, millesimi, gruppo, piano });
-                        totalMillesimi += millesimi;
-                    }
+                        if (interno) {
+                            updatedProperties.push({ interno, millesimi, gruppo, piano });
+                            totalMillesimi += millesimi;
+                        }
                 });
 
                 const updatedData = {
@@ -9550,7 +9468,7 @@
             `;
 
             showModal(`Modifica Utente: ${user.nome} ${user.cognome}`, modalContent);
-
+            
             // Add event listeners for dynamic plan selects
             document.querySelectorAll('.property-edit-row .form-select[data-field="gruppo"]').forEach(groupSelect => {
                 groupSelect.addEventListener('change', (e) => {
@@ -9565,7 +9483,7 @@
 
                     const start = parseInt(selectedOption.dataset.start, 10);
                     const end = parseInt(selectedOption.dataset.end, 10);
-
+                    
                     let planOptionsHtml = '<option value="" disabled selected>Piano...</option>';
                     for (let i = start; i <= end; i++) {
                         planOptionsHtml += `<option value="${i}">${i}</option>`;
@@ -11061,30 +10979,11 @@
                 const userType = userProfile?.tipoUtente;
                 let landingPage = 'dashboard';
 
-                // MODIFICA 11: Inizializzazione migliorata della pagina dall'URL
-                const pageFromURL = getPageFromURL();
-                if (pageFromURL && pageFromURL !== 'login') {
-                    currentPage = pageFromURL;
-                    // Imposta lo stato iniziale del browser se non presente
-                    if (!window.history.state) {
-                        const state = {
-                            page: pageFromURL,
-                            timestamp: Date.now(),
-                            userLoggedIn: true
-                        };
-                        window.history.replaceState(state, '', window.location.href);
-                    }
-                    await renderCurrentPage();
-                } else if (currentPage === 'login' || !currentPage) {
+                // Se l'utente si trova sulla pagina di login, lo reindirizziamo alla sua home.
+                // Altrimenti (se ha ricaricato la pagina), gli mostriamo la pagina su cui si trovava.
+                if (currentPage === 'login' || !currentPage) {
                     navigateTo(landingPage);
                 } else {
-                    // Imposta lo stato del browser per la pagina corrente
-                    const state = {
-                        page: currentPage,
-                        timestamp: Date.now(),
-                        userLoggedIn: true
-                    };
-                    window.history.replaceState(state, '', window.location.href);
                     await renderCurrentPage();
                 }
 
@@ -11109,9 +11008,6 @@
                 groupedProperties = {};
                 partialCondosList = [];
 
-                // MODIFICA 8: Pulisce l'URL al logout
-                window.history.replaceState({}, '', window.location.pathname);
-
                 // Naviga alla pagina di login in modo pulito
                 navigateTo('login');
             }
@@ -11125,33 +11021,6 @@
                 if (currentUser && currentPage !== 'login') {
                     refreshApplication();
                 }
-            }
-        });
-
-        // MODIFICA 12: Listener migliorato per il pulsante indietro (browser e mobile)
-        window.addEventListener('popstate', handlePopState);
-
-        // Gestione speciale per dispositivi mobile
-        window.addEventListener('beforeunload', (e) => {
-            // Salva lo stato corrente prima di uscire dalla pagina
-            if (currentUser && currentPage) {
-                const state = {
-                    page: currentPage,
-                    timestamp: Date.now(),
-                    userLoggedIn: true
-                };
-                window.history.replaceState(state, '', window.location.href);
-            }
-        });
-
-        // Gestione del focus della finestra per dispositivi mobile
-        window.addEventListener('focus', () => {
-            // Quando la finestra torna in focus, verifica se l'URL è cambiato
-            const pageFromURL = getPageFromURL();
-            if (pageFromURL && pageFromURL !== currentPage && currentUser) {
-                currentPage = pageFromURL;
-                renderCurrentPage();
-                updateBottomNavigation();
             }
         });
     </script>
