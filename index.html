@@ -1282,7 +1282,6 @@
         let pollsListener = null; // NUOVA RIGA
         let reportsListener = null; // NUOVA RIGA
         let sollecitisListener = null; // NUOVA RIGA
-        let navigationHistory = [];
         let servicePermissions = null;
         let currentStoragePath = '';
         let selectedUploadPath = ''; // Nuova variabile per il percorso di upload scelto
@@ -1709,7 +1708,7 @@
             }
         };
 
-        const navigateTo = (e) => {
+        const navigateTo = (page) => {
             const userType = userProfile?.tipoUtente;
 
             // Service permission check
@@ -1720,9 +1719,9 @@
                 'infoUtili': 'numeri_utili', 'numeriUtiliImportati': 'numeri_utili', 'numeriUtiliManuali': 'numeri_utili', 'numeriUtiliRubrica': 'numeri_utili', 'numeriUtiliCustode': 'numeri_utili', 'infoUtili_amministratore': 'numeri_utili',
                 'reportPage': 'report', 'elencoCondomini': 'report'
             };
-            const requiredService = serviceMap[e];
+            const requiredService = serviceMap[page];
             if (requiredService && !isServiceEnabledForCurrentUser(requiredService)) {
-                console.log(`Access to page '${e}' denied by service permissions.`);
+                console.log(`Access to page '${page}' denied by service permissions.`);
                 navigateTo('dashboard'); // Redirect to a safe page
                 return;
             }
@@ -1732,39 +1731,38 @@
             const admOnlyPages = ['abilitaServizi', 'cronologiaAttivita'];
 
             // Se la pagina è riservata solo all'ADM, ma l'utente non è ADM, blocca e reindirizza.
-            if (admOnlyPages.includes(e) && userType !== 'adm') {
-                console.warn(`Accesso negato per il ruolo '${userType}' alla pagina '${e}'. Reindirizzamento.`);
+            if (admOnlyPages.includes(page) && userType !== 'adm') {
+                console.warn(`Accesso negato per il ruolo '${userType}' alla pagina '${page}'. Reindirizzamento.`);
                 navigateTo('dashboard'); // Reindirizza a una pagina sicura
                 return;
             }
 
             // Se la pagina è per Supervisore/ADM, ma l'utente non ha nessuno dei due ruoli, blocca e reindirizza.
-            if (supervisorePages.includes(e) && !['supervisore', 'adm'].includes(userType)) {
-                console.warn(`Accesso negato per il ruolo '${userType}' alla pagina '${e}'. Reindirizzamento.`);
+            if (supervisorePages.includes(page) && !['supervisore', 'adm'].includes(userType)) {
+                console.warn(`Accesso negato per il ruolo '${userType}' alla pagina '${page}'. Reindirizzamento.`);
                 navigateTo('dashboard'); // Reindirizza a una pagina sicura
                 return;
             }
             // --- FINE NUOVA LOGICA ---
 
-            if (navigationHistory[navigationHistory.length - 1] !== e) {
-                navigationHistory.push(e);
-            }
-
-            if (userType === "custode" && ["sondaggi", "sondaggi_crea", "sondaggi_elenco", "sondaggi_attivi", "sondaggi_conclusi"].includes(e)) {
+            if (userType === "custode" && ["sondaggi", "sondaggi_crea", "sondaggi_elenco", "sondaggi_attivi", "sondaggi_conclusi"].includes(page)) {
                 navigateTo("segnalazioni");
             } else {
-                currentPage = e, renderCurrentPage();
+                currentPage = page;
+                // Only push state if the hash is different, to avoid duplicate entries when handling popstate
+                if (window.location.hash !== `#${page}`) {
+                    history.pushState({ page: page }, '', `#${page}`);
+                }
+                renderCurrentPage();
             }
         };
 
-        const navigateBack = () => {
-            if (navigationHistory.length > 1) {
-                navigationHistory.pop(); // Rimuove la pagina corrente dalla cronologia
-                currentPage = navigationHistory[navigationHistory.length - 1]; // La pagina precedente diventa quella corrente
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.page) {
+                currentPage = event.state.page;
                 renderCurrentPage();
             }
-            // Non fa nulla se non c'è una pagina precedente
-        };
+        });
 
         const refreshApplication = async () => {
             const refreshBtn = document.querySelector('button[onclick="refreshApplication()"]');
@@ -1891,8 +1889,8 @@
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
 
-            const backButtonHtml = navigationHistory.length > 1 ? `
-                <button onclick="navigateBack()" style="background:none; border:none; color:var(--primary-text); cursor:pointer; padding:0;">
+            const backButtonHtml = (currentPage !== 'dashboard' && currentPage !== 'login') ? `
+                <button onclick="history.back()" style="background:none; border:none; color:var(--primary-text); cursor:pointer; padding:0;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
                 </button>
             ` : '';
@@ -10854,7 +10852,6 @@
         };
 
         window.navigateTo = navigateTo;
-        window.navigateBack = navigateBack;
         window.logout = logout;
         window.toggleTheme = toggleTheme;
         window.refreshApplication = refreshApplication;
@@ -10976,15 +10973,22 @@
                 await loadServicePermissions();
                 await loadCurrentAdministrativePeriod(); // NUOVO
 
-                const userType = userProfile?.tipoUtente;
-                let landingPage = 'dashboard';
-
-                // Se l'utente si trova sulla pagina di login, lo reindirizziamo alla sua home.
-                // Altrimenti (se ha ricaricato la pagina), gli mostriamo la pagina su cui si trovava.
-                if (currentPage === 'login' || !currentPage) {
-                    navigateTo(landingPage);
+                const hash = window.location.hash.substring(1);
+                if (hash) {
+                    // If a hash is present in the URL, navigate to that page.
+                    navigateTo(hash);
                 } else {
-                    await renderCurrentPage();
+                    // Otherwise, follow the default logic.
+                    const userType = userProfile?.tipoUtente;
+                    let landingPage = 'dashboard';
+
+                    // If the user was on the login page, redirect to their home.
+                    // Otherwise (if they reloaded), show the page they were on.
+                    if (currentPage === 'login' || !currentPage) {
+                        navigateTo(landingPage);
+                    } else {
+                        await renderCurrentPage();
+                    }
                 }
 
             } else {
@@ -11003,7 +11007,6 @@
                 }
                 currentUser = null;
                 userProfile = null;
-                navigationHistory = []; // Resetta la cronologia al logout
                 // Resetta lo stato specifico della registrazione per evitare dati "sporchi"
                 groupedProperties = {};
                 partialCondosList = [];
