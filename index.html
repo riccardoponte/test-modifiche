@@ -1282,7 +1282,6 @@
         let pollsListener = null; // NUOVA RIGA
         let reportsListener = null; // NUOVA RIGA
         let sollecitisListener = null; // NUOVA RIGA
-        let navigationHistory = [];
         let servicePermissions = null;
         let currentStoragePath = '';
         let selectedUploadPath = ''; // Nuova variabile per il percorso di upload scelto
@@ -1746,24 +1745,13 @@
             }
             // --- FINE NUOVA LOGICA ---
 
-            if (navigationHistory[navigationHistory.length - 1] !== e) {
-                navigationHistory.push(e);
-            }
+            history.pushState({ page: e }, '', `#${e}`);
 
             if (userType === "custode" && ["sondaggi", "sondaggi_crea", "sondaggi_elenco", "sondaggi_attivi", "sondaggi_conclusi"].includes(e)) {
                 navigateTo("segnalazioni");
             } else {
                 currentPage = e, renderCurrentPage();
             }
-        };
-
-        const navigateBack = () => {
-            if (navigationHistory.length > 1) {
-                navigationHistory.pop(); // Rimuove la pagina corrente dalla cronologia
-                currentPage = navigationHistory[navigationHistory.length - 1]; // La pagina precedente diventa quella corrente
-                renderCurrentPage();
-            }
-            // Non fa nulla se non c'è una pagina precedente
         };
 
         const refreshApplication = async () => {
@@ -1891,8 +1879,8 @@
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
 
-            const backButtonHtml = navigationHistory.length > 1 ? `
-                <button onclick="navigateBack()" style="background:none; border:none; color:var(--primary-text); cursor:pointer; padding:0;">
+            const backButtonHtml = title !== 'Home' ? `
+                <button onclick="history.back()" style="background:none; border:none; color:var(--primary-text); cursor:pointer; padding:0;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
                 </button>
             ` : '';
@@ -10854,7 +10842,6 @@
         };
 
         window.navigateTo = navigateTo;
-        window.navigateBack = navigateBack;
         window.logout = logout;
         window.toggleTheme = toggleTheme;
         window.refreshApplication = refreshApplication;
@@ -10967,6 +10954,29 @@
         // Initialize theme immediately on page load
         initializeTheme();
 
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.page) {
+                const newPage = event.state.page;
+                // Evita di renderizzare la login page se l'utente è ancora loggato
+                if (newPage === 'login' && currentUser) {
+                    // Potresti voler reindirizzare alla dashboard o gestire diversamente
+                    history.replaceState({ page: 'dashboard' }, '', '#dashboard');
+                    currentPage = 'dashboard';
+                } else {
+                    currentPage = newPage;
+                }
+                renderCurrentPage();
+            } else {
+                 // Se lo stato è nullo, potrebbe essere la prima pagina caricata.
+                 // Controlla l'hash per un fallback.
+                 const hash = window.location.hash.substring(1);
+                 if (hash && hash !== currentPage) {
+                     currentPage = hash;
+                     renderCurrentPage();
+                 }
+            }
+        });
+
         // --- FUNZIONE onAuthStateChanged CORRETTA E ROBUSTA ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -10976,16 +10986,18 @@
                 await loadServicePermissions();
                 await loadCurrentAdministrativePeriod(); // NUOVO
 
-                const userType = userProfile?.tipoUtente;
-                let landingPage = 'dashboard';
+                const hash = window.location.hash.substring(1);
 
-                // Se l'utente si trova sulla pagina di login, lo reindirizziamo alla sua home.
-                // Altrimenti (se ha ricaricato la pagina), gli mostriamo la pagina su cui si trovava.
-                if (currentPage === 'login' || !currentPage) {
-                    navigateTo(landingPage);
+                // Determina la pagina iniziale
+                if (hash && hash !== 'login') {
+                    currentPage = hash;
                 } else {
-                    await renderCurrentPage();
+                    currentPage = 'dashboard';
                 }
+
+                // Imposta lo stato iniziale senza creare una nuova voce di cronologia
+                history.replaceState({ page: currentPage }, '', `#${currentPage}`);
+                await renderCurrentPage();
 
             } else {
                 // L'utente non è loggato o ha appena fatto logout
@@ -10993,23 +11005,30 @@
                     communicationsListener();
                     communicationsListener = null;
                 }
-                if (pollsListener) { // NUOVO BLOCCO
+                if (pollsListener) {
                     pollsListener();
                     pollsListener = null;
                 }
-                if (reportsListener) { // NUOVO BLOCCO
+                if (reportsListener) {
                     reportsListener();
                     reportsListener = null;
                 }
+                if (sollecitisListener) {
+                    sollecitisListener();
+                    sollecitisListener = null;
+                }
+
                 currentUser = null;
                 userProfile = null;
-                navigationHistory = []; // Resetta la cronologia al logout
+
                 // Resetta lo stato specifico della registrazione per evitare dati "sporchi"
                 groupedProperties = {};
                 partialCondosList = [];
 
-                // Naviga alla pagina di login in modo pulito
-                navigateTo('login');
+                // Naviga alla pagina di login in modo pulito, rimpiazzando la cronologia
+                currentPage = 'login';
+                history.replaceState({ page: 'login' }, '', '#login');
+                renderCurrentPage();
             }
         });
 
